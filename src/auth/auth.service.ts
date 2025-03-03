@@ -4,6 +4,7 @@ import { UpdateAuthDto } from './dto/update-auth.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './entities/user.entity';
 import { Model } from 'mongoose';
+import * as bcryptjs from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
@@ -14,8 +15,19 @@ export class AuthService {
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     try {
-      const newUser = new this.userModel(createUserDto);
-      return await newUser.save();
+    
+      const { password, ...userData } = createUserDto;
+
+      const newUser = new this.userModel({
+        ...userData,
+        password: bcryptjs.hashSync(password, 10),
+      });
+      
+      await newUser.save();
+      const { password:_, ...user } = newUser.toJSON();
+
+      return user;
+
     } catch (error) {
       if (error.code === 11000) { //El código 11000 indica que la llave está duplicad
         throw new BadRequestException(
