@@ -1,16 +1,20 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { LoginDto } from './dto/login.dto';
+import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './entities/user.entity';
 import { Model } from 'mongoose';
 import * as bcryptjs from 'bcryptjs';
+import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from './interfaces/jwt-payload';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(User.name)
     private userModel: Model<User>,
+    private jwtService: JwtService
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -22,7 +26,7 @@ export class AuthService {
         ...userData,
         password: bcryptjs.hashSync(password, 10),
       });
-      
+
       await newUser.save();
       const { password:_, ...user } = newUser.toJSON();
 
@@ -35,6 +39,27 @@ export class AuthService {
         );
       }
       throw new InternalServerErrorException('Something went wrong');
+    }
+  }
+
+  async login(LoginDto: LoginDto) {
+    const { email, password } = LoginDto;
+
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      throw new UnauthorizedException(`User with email ${email} not found`);
+    }
+
+    if (!user.password || !bcryptjs.compareSync(password, user.password)) {
+      throw new UnauthorizedException('Credentials are not valid (password)');
+    }
+
+    const { password:_, ...rest } = user.toJSON();
+
+    return {
+      user: rest,
+      token: this.getJwtToken({ id:user.id }),
     }
   }
 
@@ -52,5 +77,12 @@ export class AuthService {
 
   remove(id: number) {
     return `This action removes a #${id} auth`;
+  }
+
+  getJwtToken(payload: JwtPayload) {
+    
+    const token = this.jwtService.sign(payload);
+
+    return token;
   }
 }
