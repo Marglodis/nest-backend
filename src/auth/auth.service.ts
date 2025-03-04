@@ -95,4 +95,12 @@ async register(registerDto: RegisterUserDto): Promise<LoginResponse>{
 
     return token;
   }
+
+  async findUserById(id: string) {
+    const user = await this.userModel.findById(id);
+    const { password, ...rest } = user!.toJSON();
+
+    return rest;
+
+  }
 }
